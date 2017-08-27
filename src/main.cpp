@@ -209,12 +209,12 @@ int main() {
 
       if (s != "") {
         auto j = json::parse(s);
-        
+
         string event = j[0].get<string>();
-        
+
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          
+
         	// Main car's localization Data
           	double car_x = j[1]["x"];
           	double car_y = j[1]["y"];
@@ -222,16 +222,21 @@ int main() {
           	double car_d = j[1]["d"];
           	double car_yaw = j[1]["yaw"];
           	double car_speed = j[1]["speed"];
-
+            car_speed = car_speed  / 0.62137 * 1000 / 3600;  // meters per second
           	// Previous path data given to the Planner
           	auto previous_path_x = j[1]["previous_path_x"];
           	auto previous_path_y = j[1]["previous_path_y"];
-          	// Previous path's end s and d values 
+          	// Previous path's end s and d values
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
 
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
           	auto sensor_fusion = j[1]["sensor_fusion"];
+
+            // max speed in meters
+            double max_v = 50 / 0.62137 * 1000 / 3600;
+            // max acceleration 10m/s
+            double max_v_dot = 10;
 
           	json msgJson;
 
@@ -240,6 +245,43 @@ int main() {
 
 
           	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+      		  std::cout << "X:" << car_x << " Y:" << car_y << " S:" << car_s << " D:" << car_d << " Yaw:" << car_yaw << " V:" << car_speed << std::endl;
+            // vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y)
+            // vector<double> getXY(double s, double d, vector<double> maps_s, vector<double> maps_x, vector<double> maps_y)
+            // std::vector<double> frenet = getFrenet(car_x, car_y, car_yaw, map_waypoints_x, map_waypoints_y);
+            // std::cout << "S:" << frenet[0] << " D:" << frenet[1];
+            // std::vector<double> xy = getXY(car_s, car_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            // std::cout << " X:" << xy[0] << " Y:" << xy[1] << std::endl;
+            // std::cout << "prevPathX:" << previous_path_x << " prevPathY:" << previous_path_y << std::endl;
+            std::cout << "endPathS:" << end_path_s << " endPathD:" << end_path_d << std::endl;
+
+            double timeStep = 0.2;
+            double lane = 1;
+
+            double v_dot;
+            double v = car_speed;
+            double s = car_s;
+              // s = vt + 1/2 * a * t^2
+            double dist_inc = 0.5;
+
+            for(int i=0; i<50; i++) {
+              v_dot = min(max_v_dot, max_v - v);
+
+              double next_s = s + v*timeStep + 1/2*v_dot*timeStep*timeStep;
+              double next_d = 2+lane*4;
+              std::vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+
+              next_x_vals.push_back(xy[0]);
+              next_y_vals.push_back(xy[1]);
+
+              std::cout << "S:" << s << " nextS:" << next_s << std::endl;
+              s = next_s;
+              v = v+v_dot*timeStep;
+
+            }
+
+
+
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 
@@ -247,7 +289,7 @@ int main() {
 
           	//this_thread::sleep_for(chrono::milliseconds(1000));
           	ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
-          
+
         }
       } else {
         // Manual driving
@@ -290,83 +332,3 @@ int main() {
   }
   h.run();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
