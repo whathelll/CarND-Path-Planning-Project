@@ -11,10 +11,7 @@ int BehaviorPlanner::planLane(double car_x, double car_y,
   double end_path_s, double end_path_d, std::vector<std::vector<double>> sensor_fusion, double max_v) {
 
   this-> currentLane = ceil(car_d/4)-1;
-  std::cout << prevTargetLane << std::endl;
   if(prevTargetLane == -1) this->prevTargetLane = currentLane;
-  std::cout << prevTargetLane << std::endl;
-  // std::cout << "currentLane:" << currentLane << std::endl;
 
   //unsafe assumption for now, just estimate forward 1 second
   // [lane, car_x, cary_y, car_s, car_d, car_speed, cost]
@@ -22,24 +19,27 @@ int BehaviorPlanner::planLane(double car_x, double car_y,
   for (int lane = laneMin; lane <= laneMax; lane++) {
     double d = 2.0+lane*4;
     std::vector<double> xy = getXY(car_s, d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-    std::vector<double> v {1.0*lane, xy[0], xy[1], car_s, d, car_speed, 0.0}; //put cost as 0 for now
+    std::vector<double> v {1.0*lane, xy[0], xy[1], car_s, d, car_speed, 0.0}; //put cost as last item and as 0 for now
     vehicle_states.push_back(v);
   }
 
   // std::cout << "[id, x, y, vx, vy, s, d]" << std::endl;
-  for(int i = 0; i < sensor_fusion.size(); i++) {
-  	std::cout << "[";
-		for(auto val : sensor_fusion[i]) {
-			std::cout << val << ", ";
-		}
-		std::cout << "]" << std::endl;
-  }
+  // for(int i = 0; i < sensor_fusion.size(); i++) {
+  // 	std::cout << "[";
+	// 	for(auto val : sensor_fusion[i]) {
+	// 		std::cout << val << ", ";
+	// 	}
+	// 	std::cout << "]" << std::endl;
+  // }
+
+  double collision_cost = 300;
+  double unclear_lane_cost = 100;
 
   // Sensor Fusion: [id, x, y, vx, vy, s, d]
   for(int oc_index = 0; oc_index < sensor_fusion.size(); oc_index++) {
     std::vector<double>& otherCar = sensor_fusion[oc_index];
-    double newX = otherCar[1] + otherCar[3];
-    double newY = otherCar[2] + otherCar[4];
+    double newX = otherCar[1] + otherCar[3]*1;
+    double newY = otherCar[2] + otherCar[4]*1;
     double& otherCarOldS = otherCar[5];
     double angle = atan2(newX-otherCar[1],newY-otherCar[2]);
     std::vector<double> frenet = getFrenet(newX, newY, angle, map_waypoints_x, map_waypoints_y);
@@ -52,12 +52,21 @@ int BehaviorPlanner::planLane(double car_x, double car_y,
       // if lane is the same and the other carS is going to be between where we are and where we'll be
       if(otherCarLane == vehicle_state[0]) {
         //calculate collision cost
-        if(otherCarOldS >= car_s && otherCarS <= end_path_s) {
-          std::cout << "collision ID:" << otherCar[0] << " s:" << frenet[0] << " d:" << frenet[1];
-          std::cout << " oldX:" << otherCar[1] << " oldY:" << otherCar[2];
-          std::cout << " newX:" << newX << " newY:" << newY << " angle:" << angle << std::endl;
-          vehicle_state[6] += 100;
+        if(otherCarOldS >= car_s-10 && otherCarS <= (end_path_s)) {
+          std::cout << "collision:" << otherCarLane << " ID:" << otherCar[0] << " s:" << otherCarOldS << " d:" << otherCar[6];
+          std::cout << " oldS:" << otherCarOldS; //" oldX:" << otherCar[1] << " oldY:" << otherCar[2];
+          std::cout << std::endl;
+          vehicle_state[6] += collision_cost;
         }
+        //looking much further ahead to attempt to find a clear lane with a speed bias
+        if(otherCarOldS > car_s && otherCarS <= (end_path_s + car_speed*2.5)) {
+          std::cout << "lane not clear:" << otherCarLane << " ID:" << otherCar[0] << " s:" << frenet[0] << " d:" << frenet[1];
+          std::cout << " oldS:" << otherCarOldS; // << " oldX:" << otherCar[1] << " oldY:" << otherCar[2];
+          std::cout << std::endl;
+          double velocity_s = otherCarS - otherCarOldS;  //TODO change this calculation
+          vehicle_state[6] += unclear_lane_cost + (max_v - velocity_s);
+        }
+
         //calculate velocity cost if other car is in sight
         if(otherCarOldS >= car_s && otherCarOldS <= end_path_s) {
           double velocity_cost = 0.0;
@@ -66,7 +75,7 @@ int BehaviorPlanner::planLane(double car_x, double car_y,
           if(velocity_s < max_v) {
             velocity_cost = 1.0 * (max_v - velocity_s) / max_v;
           }
-          std::cout << " velocity cost: " << velocity_cost*velocity_weight;
+          std::cout << "velocity slow lane:" << otherCarLane << " ID:" << vehicle_state[0] << " velocity cost: " << velocity_cost*velocity_weight << std::endl;
           vehicle_state[6] += velocity_cost*velocity_weight;
         }
       }
@@ -80,35 +89,44 @@ int BehaviorPlanner::planLane(double car_x, double car_y,
     double& lane = vehicle_states[i][0];
     //TODO: fix this duplication
     if(cost <= min_cost && lane == prevTargetLane) {
-      std::cout << "best cost:" << cost << " lane:" << lane << std::endl;
+      // std::cout << "best cost:" << cost << " lane:" << lane << std::endl;
       min_cost = cost;
       tempTargetLane = lane;
     } else if(cost < min_cost) {
-      std::cout << "best cost:" << cost << " lane:" << lane << std::endl;
+      // std::cout << "best cost:" << cost << " lane:" << lane << std::endl;
       min_cost = cost;
       tempTargetLane = lane;
     }
   }
 
-  //smooth targetLane
-  if(tempTargetLane == currentLane) this->targetLane = currentLane;
-  if(tempTargetLane < currentLane) this->targetLane = currentLane-1;
-  if(tempTargetLane > currentLane) this->targetLane = currentLane+1;
+  // std::cout << "[lane, car_x, cary_y, car_s, car_d, car_speed, cost]" << std::endl;
+  for(int i = 0; i < vehicle_states.size(); i++) {
+    std::cout << "[";
+    for(auto val : vehicle_states[i]) {
+      std::cout << val << ", ";
+    }
+    std::cout << "]" << std::endl;
+  }
+
+  if(tempTargetLane != currentLane) {
+    std::cout << "===================================changing lanes " << tempTargetLane << " " << currentLane << "====================================" << std::endl;
+  }
+  //smooth targetLane and don't change if we're going to crash
+  if(tempTargetLane < currentLane && vehicle_states[currentLane-1][6] < collision_cost) {
+    this->targetLane = currentLane-1;
+    std::cout << "======================================changing lanes=======================================" << std::endl;
+  }
+  else if(tempTargetLane > currentLane && vehicle_states[currentLane+1][6] < collision_cost) {
+    this->targetLane = currentLane+1;
+    std::cout << "======================================changing lanes=======================================" << std::endl;
+  }
+  else if(tempTargetLane == currentLane) this->targetLane = currentLane;
+
+  std::cout << "targetLane: " << targetLane << std::endl;
 
   this->prevTargetLane = targetLane;
 
-  // std::cout << "[lane, car_x, cary_y, car_s, car_d, car_speed, cost]" << std::endl;
-  for(int i = 0; i < vehicle_states.size(); i++) {
-  	std::cout << "[";
-		for(auto val : vehicle_states[i]) {
-			std::cout << val << ", ";
-		}
-		std::cout << "]" << std::endl;
-  }
 
-  if(targetLane != currentLane) {
-    std::cout << "======================================changing lanes=======================================" << std::endl;
-  }
 
   return this->targetLane;
 }
