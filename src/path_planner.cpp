@@ -17,8 +17,6 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
   // max acceleration 10m/s
   double max_v_dot = 9.6;
   double currentLane = ceil(car_d/4)-1;
-  double targetLaneSpeed = max_v;
-  double currentLaneSpeed = max_v;
 
   // Calculate max_v to match car in front of us.
   // Sensor Fusion: [id, x, y, vx, vy, s, d]
@@ -31,21 +29,15 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
     double otherCarVy = otherCar[4];
     double otherCarV = sqrt(otherCarVx*otherCarVx + otherCarVy*otherCarVy);
 
-    if(otherCarLane == currentLane) {
+    if(otherCarLane == currentLane || otherCarLane==lane) {
       //calculate collision cost
-      if(otherCarOldS >= car_s && otherCarOldS <= end_path_s && otherCarV < max_v) {
-        currentLaneSpeed = otherCarV*0.98; //aim for slightly slower than them
-        // std::cout << "Collision ID:"  << otherCar[0] << " otherCarV:" << otherCarV << " max_v:" << max_v;
-        // std::cout << std::endl;
-      }
-    } else if(otherCarLane == lane) {  //target lane
-      if(otherCarOldS >= car_s && otherCarOldS <= end_path_s && otherCarV < max_v) {
-        targetLaneSpeed = otherCarV*0.98; //aim for slightly slower than them
+      if(otherCarOldS >= car_s && (otherCarOldS + otherCarV) <= (end_path_s + car_speed) && otherCarV < max_v) {
+        max_v = otherCarV*0.95; //aim for slightly slower than them
+        std::cout << "Slowing down for ID:"  << otherCar[0] << " otherCarV:" << otherCarV << " max_v:" << max_v;
+        std::cout << std::endl;
       }
     }
   }
-  if(targetLaneSpeed > currentLaneSpeed) max_v = targetLaneSpeed;
-  else max_v = currentLaneSpeed;
 
 
   std::vector<double> next_x_vals;
