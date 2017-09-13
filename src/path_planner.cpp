@@ -15,7 +15,7 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
   // max speed in meters  = ~22m/s
   double max_v = (49.8 / 0.62137) * 1000 / 3600;
   // max acceleration 10m/s
-  double max_v_dot = 9.0;
+  double max_v_dot = 8.5; //for some reason the simulator sometimes blips a accel violation, lowering this to avoid it.
   double currentLane = ceil(car_d/4)-1;
 
   // Calculate max_v to match car in front of us.
@@ -24,15 +24,22 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
     std::vector<double>& otherCar = sensor_fusion[oc_index];
     double& otherCarOldS = otherCar[5];
     double otherCarLane = ceil(otherCar[6]/4)-1;
-
     double otherCarVx = otherCar[3];
     double otherCarVy = otherCar[4];
     double otherCarV = sqrt(otherCarVx*otherCarVx + otherCarVy*otherCarVy);
 
-    if(otherCarLane == currentLane || otherCarLane==lane) {
+    //predict the future D 1 second later, on rare occassions they make dangerous lane changes
+    double newX = otherCar[1] + otherCar[3]*1;
+    double newY = otherCar[2] + otherCar[4]*1;
+    double angle = atan2(newX-otherCar[1],newY-otherCar[2]);
+    std::vector<double> frenet = getFrenet(newX, newY, angle, map_waypoints_x, map_waypoints_y);
+    double otherCarFutureLane = ceil(frenet[1]/4)-1;
+
+
+    if(otherCarLane == currentLane || otherCarLane==lane || otherCarFutureLane==currentLane) {
       //calculate collision and match speed
       if(otherCarOldS >= car_s && (otherCarOldS+otherCarV*0.2) <= (end_path_s + car_speed*0.2) && otherCarV < max_v) {
-        max_v = otherCarV*0.97; //aim for slightly slower than them
+        max_v = otherCarV*0.95; //aim for slightly slower than them
         std::cout << "Slowing down for ID:"  << otherCar[0] << " otherCarV:" << otherCarV << " max_v:" << max_v;
         std::cout << std::endl;
       }
