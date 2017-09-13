@@ -20,7 +20,7 @@ for (int lane = laneMin; lane <= laneMax; lane++) {
 
 For each of the above state I loop through the sensor fusion (loop is more efficient the other way around but it's easier for logging). If the other car's lane matched the vehicle state then we check for cost conditions to assess how desirable this lane is.
 
-If the car is within 5 meters of our car we add a collision_cost of 300. This is used to stop us from changing lanes and hitting them. I believe this became redundant after I added the unclear lane calculation that varies based on distance. While I haven't tweaked that to take into consideration cars slightly behind us I'm keeping it. 
+If the car is within 5 meters of our car we add a collision_cost of 300. This is used to stop us from changing lanes and hitting them. I believe this became redundant after I added the unclear lane calculation that varies based on distance. While I haven't tweaked that to take into consideration cars slightly behind us I'm keeping it.
 ```c++
 //calculate collision cost
 if(otherCarOldS >= car_s-7 && (otherCarOldS) <= (car_s + 10)) {
@@ -127,8 +127,3 @@ for(int oc_index = 0; oc_index < sensor_fusion.size(); oc_index++) {
   }
 }
 ```
-
-
-## TODO
-have a different collision cost to car_is_too_close
-Modify cost function of unclear lanes to include distance from our car
