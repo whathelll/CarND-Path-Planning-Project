@@ -9,7 +9,7 @@ public:
   int laneMin = 0;
   int laneMax = 2;
   int currentLane;
-  int targetLane;
+  int targetLane = -1;
   int prevTargetLane = -1;
 
   BehaviorPlanner();

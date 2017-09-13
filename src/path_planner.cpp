@@ -13,9 +13,9 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
 
   car_speed = car_speed  / 0.62137 * 1000 / 3600;  // meters per second
   // max speed in meters  = ~22m/s
-  double max_v = (59.9 / 0.62137) * 1000 / 3600;
+  double max_v = (49.8 / 0.62137) * 1000 / 3600;
   // max acceleration 10m/s
-  double max_v_dot = 9.6;
+  double max_v_dot = 9.0;
   double currentLane = ceil(car_d/4)-1;
 
   // Calculate max_v to match car in front of us.
@@ -30,9 +30,9 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
     double otherCarV = sqrt(otherCarVx*otherCarVx + otherCarVy*otherCarVy);
 
     if(otherCarLane == currentLane || otherCarLane==lane) {
-      //calculate collision cost
-      if(otherCarOldS >= car_s && (otherCarOldS + otherCarV) <= (end_path_s + car_speed) && otherCarV < max_v) {
-        max_v = otherCarV*0.95; //aim for slightly slower than them
+      //calculate collision and match speed
+      if(otherCarOldS >= car_s && (otherCarOldS+otherCarV*0.2) <= (end_path_s + car_speed*0.2) && otherCarV < max_v) {
+        max_v = otherCarV*0.97; //aim for slightly slower than them
         std::cout << "Slowing down for ID:"  << otherCar[0] << " otherCarV:" << otherCarV << " max_v:" << max_v;
         std::cout << std::endl;
       }
@@ -87,7 +87,7 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
   //
   // // add 2 more ref points
   std::vector<double> ref_pt1 = getXY(s + 30.0, 2+lane*4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-  std::vector<double> ref_pt2 = getXY(s + 60.0, 2+lane*4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+  std::vector<double> ref_pt2 = getXY(s + 90.0, 2+lane*4, map_waypoints_s, map_waypoints_x, map_waypoints_y);
   ref_path_x.push_back(ref_pt1[0]);
   ref_path_y.push_back(ref_pt1[1]);
   ref_path_x.push_back(ref_pt2[0]);
@@ -127,20 +127,9 @@ std::vector<std::vector<double>> PathPlanner::planPath(double car_x, double car_
   v_dot = (max_v - v) / t;
   if(v_dot > 0 && v_dot > max_v_dot) v_dot = max_v_dot;
   if(v_dot < 0 && v_dot < -max_v_dot) v_dot = -max_v_dot;
-  // double expected_distance = v * t + 0.5 * v_dot * t*t;
-  // std::cout << "maxV: " << max_v << " v: " << v << " required v_dot: " << v_dot;
-  // std::cout << std::endl;
-
-
-  // double x_add_on = 0.0;
-  // double num_steps = target_dist / (max_v*timeStep);
-  // double x_add_on = target_dist / num_steps;
-
-  // std::cout << "add_on:" << x_add_on << " target_dist: " << target_dist << std::endl;
 
   // generate the additional points
   for(int i=1; i<=50-path_size; i++) {
-    // double x_point = x_add_on*(i);
     double t_temp = i*0.02;
     double distance_covered = v * t_temp + 0.5 * v_dot * t_temp*t_temp;
     double distance_ratio = (distance_covered/target_dist); // (0.002/5) (5/30)
